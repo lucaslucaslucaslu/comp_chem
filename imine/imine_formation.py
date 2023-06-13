@@ -1,5 +1,6 @@
 import pandas as pd
 from rdkit.Chem import AllChem as Chem
+import os
 
 # Assuming ds_1 and ds_2 are pandas DataFrames containing the datasets
 ds_1 = pd.DataFrame({
@@ -69,6 +70,7 @@ df_res = pd.DataFrame(index=range(rows), columns=columns)
 
 for i in range(0, len(ds_1)):
     for j in range(0, len(ds_2)):
+        HOME = os.getcwd()
         aldehyde_ketone_index = i
         amine_index = j
         imine_smiles = form_imine(aldehyde_ketone_index, amine_index)
@@ -76,5 +78,23 @@ for i in range(0, len(ds_1)):
         df_res.at[i * len(ds_2) + j, 'amine'] = ds_2.loc[j, 'SMILES']
         df_res.at[i * len(ds_2) + j, 'SMILES_intermediate_1'] = imine_smiles
 
+        smiles_strings = [ds_1.loc[i, 'SMILES'], ds_2.loc[j, 'SMILES'], imine_smiles]
+
+
+        os.system(f'mkdir -p rxn_{i}_{j}')
+        os.chdir(f'rxn_{i}_{j}')
+        # make xyz_files
+        for k in range(3):
+            mol = Chem.MolFromSmiles(smiles_strings[k])
+            mol = Chem.AddHs(mol)
+            Chem.EmbedMolecule(mol)  # Generate a 3D conformation
+            Chem.UFFOptimizeMolecule(mol)  # Optimize the geometry using the UFF force field
+            if k == 0:
+                Chem.rdmolfiles.MolToXYZFile(mol, f'rxn_{i}_{j}_ketone_aldehyde.xyz')
+            elif k == 1:
+                Chem.rdmolfiles.MolToXYZFile(mol, f'rxn_{i}_{j}_amine.xyz')
+            else:
+                Chem.rdmolfiles.MolToXYZFile(mol, f'rxn_{i}_{j}_intermediate.xyz')
+        os.chdir(HOME)
 
 print(df_res)
