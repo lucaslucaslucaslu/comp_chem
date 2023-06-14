@@ -1,39 +1,56 @@
 import pandas as pd
 from rdkit.Chem import AllChem as Chem
 import os
+import subprocess
+from autode import Molecule
+from autode import Calculation
+from autode.reactions.reaction import Reaction
 
-#set of aldehydes and methyl ketones
+
+# for small value testing
 ds_1 = pd.DataFrame({
-    'SMILES': [
-        'CC(=O)C', 'CCC(=O)C', 'CCCC(=O)C', 'CC(C)=O', 'CC(=O)CC',
-        'CCC(=O)CC', 'CC(=O)C(C)C', 'CCC(=O)C(C)C', 'CC(C)C(=O)C(C)C',
-        'CCC(C)C(=O)C(C)C', 'CCCC(C)C(=O)C(C)C', 'CC(C)(C)C(=O)C(C)C',
-        'CCC(C)(C)C(=O)C(C)C', 'CCCC(C)(C)C(=O)C(C)C', 'CC(C)C(=O)C',
-        'CCC(C)C(=O)C', 'CCCC(C)C(=O)C', 'CC(C)(C)C(=O)C(C)C',
-        'CCC(C)(C)C(=O)C(C)C', 'CCCC(C)(C)C(=O)C(C)C', 'CC(=O)CC(C)C',
-        'CCC(=O)CC(C)C', 'CCCC(=O)CC(C)C', 'CC(=O)CCC(C)C', 'CCC(=O)CCC(C)C',
-        'CCCC(=O)CCC(C)C', 'CC(=O)CCCC(C)C', 'CCC(=O)CCCC(C)C', 'CCCC(=O)CCCC(C)C',
-        'CC(C)CC(=O)C(C)C', 'CCC(C)CC(=O)C(C)C', 'CCCC(C)CC(=O)C(C)C',
-        'CC(C)(C)CC(=O)C(C)C', 'CCC(C)(C)CC(=O)C(C)C', 'CCCC(C)(C)CC(=O)C(C)C',
-        'CC(C)CC(=O)CC(C)C', 'CCC(C)CC(=O)CC(C)C', 'CCCC(C)CC(=O)CC(C)C',
-        'CC(C)(C)CC(=O)CC(C)C', 'CCC(C)(C)CC(=O)CC(C)C', 'CCCC(C)(C)CC(=O)CC(C)C'
-    ]
+    'SMILES': ['CC(C)=O', 'C=O', 'CC(C)C=O'],
+    'Name': ['Acetone', 'Formaldehyde', 'Isobutyraldehyde']
 })
 
-#set of primary amines
 ds_2 = pd.DataFrame({
-    'SMILES': [
-        'CC(N)C', 'CCC(N)C', 'CC(C)CN', 'CC(C)(C)CN', 'CCCC(N)C',
-        'CC(CCC)N', 'CC(CC)CN', 'CC(N)CC', 'CC(NC)C', 'CC(CN)C',
-        'C(CN)C', 'CC(C)NCC', 'CC(CCC)NCC', 'CC(CCC)N(C)C', 'CC(CCC)NC',
-        'CCC(CC)N', 'CC(CC)(C)CN', 'CCC(CC)NC', 'CC(CCN)CC', 'CC(CNCC)CC',
-        'CC(C)(CN)CC', 'CC(C)N(C)CC', 'CC(N(C)C)CC', 'CCCCC(N)C', 'CCCCC(C)N',
-        'CC(CC)CCN', 'CC(CCC)CCN', 'CC(CC)(CC)CN', 'CCC(CC)CCN', 'CC(CC)(C)CCN',
-        'CCC(CC)CCN', 'CC(CCN)CC', 'CC(C)(CC)CCN', 'CCC(CC)CCN', 'CC(CCNCC)CC',
-        'CC(CNCC)CC', 'CC(C)(CN)CC', 'CC(C)N(C)CC', 'CC(N(C)C)CC', 'CCCCC(N)C',
-        'CCCCC(C)N', 'CC(CC)CC(C)N', 'CCC(CC)CC(C)N', 'CCCC(CC)N'
-    ]
+    'SMILES': ['CC(N)C', 'CN', 'CCC(N)C'],
+    'Name': ['Isopropylamine', 'Methylamine', 'Isobutylamine']
 })
+
+
+# # real set of aldehydes and methyl ketones
+# ds_1 = pd.DataFrame({
+#     'SMILES': [
+#         'CC(=O)C', 'CCC(=O)C', 'CCCC(=O)C', 'CC(C)=O', 'CC(=O)CC',
+#         'CCC(=O)CC', 'CC(=O)C(C)C', 'CCC(=O)C(C)C', 'CC(C)C(=O)C(C)C',
+#         'CCC(C)C(=O)C(C)C', 'CCCC(C)C(=O)C(C)C', 'CC(C)(C)C(=O)C(C)C',
+#         'CCC(C)(C)C(=O)C(C)C', 'CCCC(C)(C)C(=O)C(C)C', 'CC(C)C(=O)C',
+#         'CCC(C)C(=O)C', 'CCCC(C)C(=O)C', 'CC(C)(C)C(=O)C(C)C',
+#         'CCC(C)(C)C(=O)C(C)C', 'CCCC(C)(C)C(=O)C(C)C', 'CC(=O)CC(C)C',
+#         'CCC(=O)CC(C)C', 'CCCC(=O)CC(C)C', 'CC(=O)CCC(C)C', 'CCC(=O)CCC(C)C',
+#         'CCCC(=O)CCC(C)C', 'CC(=O)CCCC(C)C', 'CCC(=O)CCCC(C)C', 'CCCC(=O)CCCC(C)C',
+#         'CC(C)CC(=O)C(C)C', 'CCC(C)CC(=O)C(C)C', 'CCCC(C)CC(=O)C(C)C',
+#         'CC(C)(C)CC(=O)C(C)C', 'CCC(C)(C)CC(=O)C(C)C', 'CCCC(C)(C)CC(=O)C(C)C',
+#         'CC(C)CC(=O)CC(C)C', 'CCC(C)CC(=O)CC(C)C', 'CCCC(C)CC(=O)CC(C)C',
+#         'CC(C)(C)CC(=O)CC(C)C', 'CCC(C)(C)CC(=O)CC(C)C', 'CCCC(C)(C)CC(=O)CC(C)C'
+#     ]
+# })
+
+# #set of primary amines
+# ds_2 = pd.DataFrame({
+#     'SMILES': [
+#         'CC(N)C', 'CCC(N)C', 'CC(C)CN', 'CC(C)(C)CN', 'CCCC(N)C',
+#         'CC(CCC)N', 'CC(CC)CN', 'CC(N)CC', 'CC(NC)C', 'CC(CN)C',
+#         'C(CN)C', 'CC(C)NCC', 'CC(CCC)NCC', 'CC(CCC)N(C)C', 'CC(CCC)NC',
+#         'CCC(CC)N', 'CC(CC)(C)CN', 'CCC(CC)NC', 'CC(CCN)CC', 'CC(CNCC)CC',
+#         'CC(C)(CN)CC', 'CC(C)N(C)CC', 'CC(N(C)C)CC', 'CCCCC(N)C', 'CCCCC(C)N',
+#         'CC(CC)CCN', 'CC(CCC)CCN', 'CC(CC)(CC)CN', 'CCC(CC)CCN', 'CC(CC)(C)CCN',
+#         'CCC(CC)CCN', 'CC(CCN)CC', 'CC(C)(CC)CCN', 'CCC(CC)CCN', 'CC(CCNCC)CC',
+#         'CC(CNCC)CC', 'CC(C)(CN)CC', 'CC(C)N(C)CC', 'CC(N(C)C)CC', 'CCCCC(N)C',
+#         'CCCCC(C)N', 'CC(CC)CC(C)N', 'CCC(CC)CC(C)N', 'CCCC(CC)N'
+#     ]
+# })
 
 
 def form_imine(aldehyde_ketone, amine):
@@ -84,38 +101,65 @@ def form_imine(aldehyde_ketone, amine):
     return imine_smiles
 
 rows = len(ds_1) * len(ds_2)
-columns = ['ketone_aldehyde', 'amine','SMILES_intermediate_1']
+columns = ['ketone_aldehyde', 'amine','SMILES_intermediate_1', 'Energy']
 
 df_res = pd.DataFrame(index=range(rows), columns=columns)
 
 
 for i in range(0, len(ds_1)):
     for j in range(0, len(ds_2)):
-        # HOME = os.getcwd()
+        HOME = os.getcwd()
         aldehyde_ketone_index = i
         amine_index = j
         imine_smiles = form_imine(aldehyde_ketone_index, amine_index)
         df_res.at[i * len(ds_2) + j, 'ketone_aldehyde'] = ds_1.loc[i, 'SMILES']
         df_res.at[i * len(ds_2) + j, 'amine'] = ds_2.loc[j, 'SMILES']
         df_res.at[i * len(ds_2) + j, 'SMILES_intermediate_1'] = imine_smiles
-
-        #create xyz files for each amine + aldehyde/ketone + intermediate combo
         
-        # smiles_strings = [ds_1.loc[i, 'SMILES'], ds_2.loc[j, 'SMILES'], imine_smiles]
-        # os.system(f'mkdir -p rxn_{i}_{j}')
-        # os.chdir(f'rxn_{i}_{j}')
-        # # make xyz_files
-        # for k in range(3):
-        #     mol = Chem.MolFromSmiles(smiles_strings[k])
-        #     mol = Chem.AddHs(mol)
-        #     Chem.EmbedMolecule(mol)  # Generate a 3D conformation
-        #     Chem.UFFOptimizeMolecule(mol)  # Optimize the geometry using the UFF force field
-        #     if k == 0:
-        #         Chem.rdmolfiles.MolToXYZFile(mol, f'rxn_{i}_{j}_ketone_aldehyde.xyz')
-        #     elif k == 1:
-        #         Chem.rdmolfiles.MolToXYZFile(mol, f'rxn_{i}_{j}_amine.xyz')
-        #     else:
-        #         Chem.rdmolfiles.MolToXYZFile(mol, f'rxn_{i}_{j}_intermediate.xyz')
-        # os.chdir(HOME)
+        #create xyz files for each amine + aldehyde/ketone + intermediate combo
+        smiles_strings = [ds_1.loc[i, 'SMILES'], ds_2.loc[j, 'SMILES'], imine_smiles]
+        os.system(f'mkdir -p rxn_{i}_{j}')
+        os.chdir(f'rxn_{i}_{j}')
+        # make xyz_files
+        for k in range(3):
+            mol = Chem.MolFromSmiles(smiles_strings[k])
+            mol = Chem.AddHs(mol)
+            Chem.EmbedMolecule(mol)  # Generate a 3D conformation
+            Chem.UFFOptimizeMolecule(mol)  # Optimize the geometry using the UFF force field
+            newadd = os.getcwd()
+            if k == 0:
+                os.system('mkdir -p ketone_aldehyde')
+                os.chdir('ketone_aldehyde')
+                Chem.rdmolfiles.MolToXYZFile(mol, f'rxn_{i}_{j}_ketone_aldehyde.xyz')
+                subprocess.run(['xtb', f'rxn_{i}_{j}_ketone_aldehyde.xyz', '--opt'], check=True)
+                os.chdir(newadd)
+            elif k == 1:
+                os.system('mkdir -p amine')
+                os.chdir('amine')
+                Chem.rdmolfiles.MolToXYZFile(mol, f'rxn_{i}_{j}_amine.xyz')
+                subprocess.run(['xtb', f'rxn_{i}_{j}_amine.xyz', '--opt'], check=True)
+                os.chdir(newadd)
+            else:
+                os.system('mkdir -p intermediate')
+                os.chdir('intermediate')
+                Chem.rdmolfiles.MolToXYZFile(mol, f'rxn_{i}_{j}_intermediate.xyz')
+                subprocess.run(['xtb', f'rxn_{i}_{j}_intermediate.xyz', '--opt'], check=True)
+                os.chdir(newadd)
+        reactant1 = Molecule('amine/xtbopt.xyz')
+        reactant2 = Molecule('ketone_aldehyde/xtbopt.xyz')
+        product = Molecule('intermediate/xtbopt.xyz')
+        # Define the reaction using the reactant and product molecules
+        reaction = Reaction(reactants=[reactant1, reactant2], products=[product])
+
+        # Set up a calculation to calculate the reaction energy change
+        calc = Calculation(name='reaction', molecule=reaction)
+
+        # Run the calculation to calculate the energy change
+        calc.run()
+
+        # Get the reaction energy change in Hartree
+        energy_change = calc.get_energy_change()
+        df_res.at[i * len(ds_2) + j, 'Energy'] = energy_change
+        os.chdir(HOME)
 
 print(df_res)
