@@ -1,11 +1,10 @@
 import pandas as pd
 from rdkit.Chem import AllChem as Chem
 import os
-import subprocess
-from autode import Molecule
-from autode import Calculation
-from autode.reactions.reaction import Reaction
+import autode as ade
 
+ade.Config.n_cores = 16
+ade.Config.max_core = 4000
 
 # for small value testing
 ds_1 = pd.DataFrame({
@@ -101,7 +100,7 @@ def form_imine(aldehyde_ketone, amine):
     return imine_smiles
 
 rows = len(ds_1) * len(ds_2)
-columns = ['ketone_aldehyde', 'amine','SMILES_intermediate_1', 'Energy']
+columns = ['ketone_aldehyde', 'amine','SMILES_intermediate_1', 'Energy_amine', 'Energy_ketone_aldehyde', 'Energy_intermediate', 'Energy']
 
 df_res = pd.DataFrame(index=range(rows), columns=columns)
 
@@ -126,40 +125,26 @@ for i in range(0, len(ds_1)):
             mol = Chem.AddHs(mol)
             Chem.EmbedMolecule(mol)  # Generate a 3D conformation
             Chem.UFFOptimizeMolecule(mol)  # Optimize the geometry using the UFF force field
-            newadd = os.getcwd()
             if k == 0:
-                os.system('mkdir -p ketone_aldehyde')
-                os.chdir('ketone_aldehyde')
                 Chem.rdmolfiles.MolToXYZFile(mol, f'rxn_{i}_{j}_ketone_aldehyde.xyz')
-                subprocess.run(['xtb', f'rxn_{i}_{j}_ketone_aldehyde.xyz', '--opt'], check=True)
-                os.chdir(newadd)
+                m = ade.Molecule(f'rxn_{i}_{j}_ketone_aldehyde.xyz')
+                m.optimise(method=ade.methods.XTB())
+                m.calc_thermo()
+                df_res.at[i * len(ds_2) + j, 'Energy_ketone_aldehyde'] = m.product.free_energy.to('kcal')
             elif k == 1:
-                os.system('mkdir -p amine')
-                os.chdir('amine')
                 Chem.rdmolfiles.MolToXYZFile(mol, f'rxn_{i}_{j}_amine.xyz')
-                subprocess.run(['xtb', f'rxn_{i}_{j}_amine.xyz', '--opt'], check=True)
-                os.chdir(newadd)
+                m = ade.Molecule(f'rxn_{i}_{j}_amine.xyz')
+                m.optimise(method=ade.methods.XTB())
+                m.calc_thermo()
+                df_res.at[i * len(ds_2) + j, 'Energy_amine'] = m.product.free_energy.to('kcal')
             else:
-                os.system('mkdir -p intermediate')
-                os.chdir('intermediate')
                 Chem.rdmolfiles.MolToXYZFile(mol, f'rxn_{i}_{j}_intermediate.xyz')
-                subprocess.run(['xtb', f'rxn_{i}_{j}_intermediate.xyz', '--opt'], check=True)
-                os.chdir(newadd)
-        reactant1 = Molecule('amine/xtbopt.xyz')
-        reactant2 = Molecule('ketone_aldehyde/xtbopt.xyz')
-        product = Molecule('intermediate/xtbopt.xyz')
-        # Define the reaction using the reactant and product molecules
-        reaction = Reaction(reactants=[reactant1, reactant2], products=[product])
-
-        # Set up a calculation to calculate the reaction energy change
-        calc = Calculation(name='reaction', molecule=reaction)
-
-        # Run the calculation to calculate the energy change
-        calc.run()
-
-        # Get the reaction energy change in Hartree
-        energy_change = calc.get_energy_change()
-        df_res.at[i * len(ds_2) + j, 'Energy'] = energy_change
+                m = ade.Molecule(f'rxn_{i}_{j}_intermediate.xyz')
+                m.optimise(method=ade.methods.XTB())
+                m.calc_thermo()
+                df_res.at[i * len(ds_2) + j, 'Energy_intermediate'] = m.product.free_energy.to('kcal')
+        reaction_energy = df_res.loc[i * len(ds_2) + j, 'Energy_amine'] - (df_res.loc[i * len(ds_2) + j, 'Energy_ketone_aldehyde'] + df_res.loc[i * len(ds_2) + j, 'Energy_amine'])
+        df_res.at[i * len(ds_2) + j, 'Energy'] = reaction_energy
         os.chdir(HOME)
 
 print(df_res)
